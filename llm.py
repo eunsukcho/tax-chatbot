@@ -115,18 +115,25 @@ def get_rag_chain():
     return conversational_rag_chain
 
 def route(info):
-    if "tax" in info["topic"].lower():
-        return default_chain()
-    else:
-        return "소득세법 관련 법률에 대한 질문이 아니라서 답변할 수 없습니다."
+    topic = info["topic"].lower()
+
+    if topic == "tax":
+        return default_chain()  # RAG로 답변
+    if topic == "greeting":
+        return "안녕하세요! 소득세 관련해서 궁금한 점을 질문해 주세요. 😊"
+    return "소득세법 관련 법률에 대한 질문이 아니라서 답변할 수 없습니다."
+    
 
 def get_only_tax_chat_chain():
     llm = get_llm()
     prompt = ChatPromptTemplate.from_template(
-        f"""사용자의 질문을 보고, 소득세법 관련 법률에 대한 질문에만 답변해주세요.
-        보유하고있는 문서의 내용을 참고하여 답변할 수 있는 항목에 대한 대답 여부도 할 수 있습니다.
-        또한 소득세법에 관련된 질문은 'tax'로 리턴해주세요. 그 외의 질문은 'other'로 리턴해주세요.
-        질문: {{question}}"""
+        """아래 질문을 보고 분류 라벨만 출력하세요.
+        - 'tax': 소득세법/세법/소득세 관련 법률 질문
+        - 'greeting': 짧은 인사/감사/호출(예: 안녕하세요, 하이, 고마워요, 테스트)
+        - 'other': 그 외 모든 것
+
+        반드시 tax/greeting/other 중 하나만 출력.
+        질문: {question}"""
     )
     only_tax_chat_chain = prompt | llm | StrOutputParser()
     return only_tax_chat_chain
@@ -139,7 +146,7 @@ def default_chain():
 
     return tax_chain
 
-def get_ai_response(user_message):
+def get_ai_response(user_message, session_id: str):
     first_chain = get_only_tax_chat_chain()
     first_chain = first_chain.invoke({"question": user_message})
 
@@ -154,7 +161,7 @@ def get_ai_response(user_message):
         }, 
         config={
             "configurable" : {
-                "session_id": "abc123"
+                "session_id": session_id
             }    
         }
     )
