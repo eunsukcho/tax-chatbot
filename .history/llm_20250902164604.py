@@ -115,16 +115,15 @@ def get_rag_chain():
 
 def route(info):
     if "tax" in info["topic"].lower():
-        return default_chain()
+        return default_chain(info["question"])
     else:
         return "소득세법 관련 법률에 대한 질문이 아니라서 답변할 수 없습니다."
 
 def get_only_tax_chat_chain():
     llm = get_llm()
     prompt = ChatPromptTemplate.from_template(
-        f"""사용자의 질문을 보고, 소득세법 관련 법률에 대한 질문에만 답변해주세요.
-        보유하고있는 문서의 내용을 참고하여 답변할 수 있는 항목에 대한 대답 여부도 할 수 있습니다.
-        또한 소득세법에 관련된 질문은 'tax'로 리턴해주세요. 그 외의 질문은 'other'로 리턴해주세요.
+        f"""사용자의 질문을 보고, 소득세법, 세법, 소득세법 관련 법률에 대한 질문에만 답변해주세요.
+        소득세에 관련된 질문은 'tax', 그 외의 질문은 모두 'other'로 리턴해주세요.  
         질문: {{question}}"""
     )
     only_tax_chat_chain = prompt | llm | StrOutputParser()

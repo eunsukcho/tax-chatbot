@@ -113,40 +113,69 @@ def get_rag_chain():
 
     return conversational_rag_chain
 
+def get_ai_message(user_message):
+    
+    dictionary_chain = get_dictionary_chain()
+    rag_chain = get_rag_chain()
+
+    tax_chain = {"input":dictionary_chain} | rag_chain
+    ai_message = tax_chain.invoke(
+        {
+            "question":user_message
+        }, 
+        config={
+            "configurable" : {
+                "session_id": "abc123"
+            }    
+        })
+    return ai_message
+
 def route(info):
     if "tax" in info["topic"].lower():
-        return default_chain()
+        return default_chain(info["question"])
     else:
-        return "소득세법 관련 법률에 대한 질문이 아니라서 답변할 수 없습니다."
+        return RunnableLambda(lambda _: "소득세법, 세법, 소득세법 관련 법률에 대한 질문이 아니라서 답변할 수 없습니다.")
 
 def get_only_tax_chat_chain():
     llm = get_llm()
     prompt = ChatPromptTemplate.from_template(
-        f"""사용자의 질문을 보고, 소득세법 관련 법률에 대한 질문에만 답변해주세요.
-        보유하고있는 문서의 내용을 참고하여 답변할 수 있는 항목에 대한 대답 여부도 할 수 있습니다.
-        또한 소득세법에 관련된 질문은 'tax'로 리턴해주세요. 그 외의 질문은 'other'로 리턴해주세요.
+        f"""사용자의 질문을 보고, 소득세법, 세법, 소득세법 관련 법률에 대한 질문에만 답변해주세요.
+        소득세에 관련된 질문은 'tax', 그 외의 질문은 모두 'other'로 리턴해주세요.  
         질문: {{question}}"""
     )
     only_tax_chat_chain = prompt | llm | StrOutputParser()
     return only_tax_chat_chain
 
-def default_chain():
+def other_answer_chain():
+    llm = get_llm()
+    prompt = ChatPromptTemplate.from_template(
+        f"""사용자의 질문을 보고, 소득세법, 세법, 소득세법 관련 법률에 대한 질문이 아니라서 답변할 수 없습니다. 라고 답변해주세요.
+        질문: {{question}}"""
+    )
+    other_answer_chain = prompt | llm | StrOutputParser()
+    return other_answer_chain
+
+def default_chain(user_message):
     dictionary_chain = get_dictionary_chain()
     rag_chain = get_rag_chain()
 
     tax_chain = {"input":dictionary_chain} | rag_chain
-
+    # ai_response = tax_chain.stream(
+    #     { 
+    #         "question":user_message
+    #     }, 
+    #     config={
+    #         "configurable" : {
+    #             "session_id": "abc1234"
+    #         }    
+    #     })
     return tax_chain
 
 def get_ai_response(user_message):
-    first_chain = get_only_tax_chat_chain()
-    first_chain = first_chain.invoke({"question": user_message})
+    full_chain = {"topic": get_only_tax_chat_chain(), "question": lambda x: x["question"]} | RunnableLambda(
+        route
+    )
 
-    full_chain = {
-        "topic": lambda _: first_chain, 
-        "question": lambda x: x["question"],
-        } | RunnableLambda(route)
-    
     ai_message = full_chain.stream(
         {
             "question":user_message
@@ -155,25 +184,6 @@ def get_ai_response(user_message):
             "configurable" : {
                 "session_id": "abc123"
             }    
-        }
-    )
+        })
     return ai_message
-
-
-
-# def get_ai_message(user_message):
     
-#     dictionary_chain = get_dictionary_chain()
-#     rag_chain = get_rag_chain()
-
-#     tax_chain = {"input":dictionary_chain} | rag_chain
-#     ai_message = tax_chain.invoke(
-#         {
-#             "question":user_message
-#         }, 
-#         config={
-#             "configurable" : {
-#                 "session_id": "abc123"
-#             }    
-#         })
-#     return ai_message
